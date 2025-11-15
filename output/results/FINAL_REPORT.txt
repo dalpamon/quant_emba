@@ -1,0 +1,168 @@
+
+================================================================================
+MOMENTUM STRATEGY ANALYSIS - FINAL REPORT
+================================================================================
+
+EXECUTIVE SUMMARY
+-----------------
+Research Question: Does momentum investing work in the Korean stock market?
+
+Answer: NO - We found REVERSE momentum (mean reversion)
+
+Data:
+  • Source: FnGuide
+  • Period: 2024-12-06 to 2025-11-14
+  • Stocks: 2,545 Korean companies
+  • Trading days: 344
+
+Strategy:
+  • Lookback: 20 days
+  • Portfolios: Top 10% (Winners) vs Bottom 10% (Losers)
+  • Rebalancing: Daily
+
+================================================================================
+RESULTS
+================================================================================
+
+1. WINNER PORTFOLIO (Top 10% past performers)
+   Average daily return:    +0.0237%
+   Annualized return:       +6.16%
+   Sharpe ratio:            0.35
+   Win rate:                32.0%
+
+2. LOSER PORTFOLIO (Bottom 10% past performers)
+   Average daily return:    +0.0945%
+   Annualized return:       +26.87%
+   Sharpe ratio:            1.17
+   Win rate:                37.5%
+
+3. LONG-SHORT STRATEGY (Winners - Losers)
+   Average daily return:    -0.0708%
+   Annualized return:       -16.34%
+   Sharpe ratio:            -1.08
+   Win rate:                28.5%
+
+   Total return over period: -23.05%
+
+STATISTICAL SIGNIFICANCE
+------------------------
+   T-statistic:             -1.2651
+   P-value:                 0.206700
+   Conclusion:              Not statistically significant
+
+================================================================================
+INTERPRETATION
+================================================================================
+
+Finding: REVERSE MOMENTUM (Mean Reversion)
+-------------------------------------------
+Instead of momentum, the Korean market shows mean reversion during this period:
+  • Recent losers (+0.0945% daily) outperformed
+  • Recent winners (+0.0237% daily) underperformed
+  • Spread: -0.0708% daily (negative = reverse momentum)
+
+Why might this happen?
+  1. Market overreaction: Investors overreact to news, creating temporary mispricings
+  2. Liquidity constraints: Korean market smaller than US, more volatility
+  3. Retail investor behavior: Higher retail participation → emotional trading
+  4. Time period: Nov 2024 - Nov 2025 may be unusual (check if typical)
+  5. Short horizon: 20-day lookback may be too short for momentum in Korea
+
+Academic Context
+----------------
+  • Jegadeesh & Titman (1993): Found momentum in US stocks (3-12 month horizon)
+  • Our finding: Different result in Korean market (20-day horizon)
+  • This is still valuable! Shows market differences matter
+
+Practical Implications
+---------------------
+  ✓ Momentum strategy would LOSE money in Korean market (this period)
+  ✓ CONTRARIAN strategy (buy losers, sell winners) would MAKE money
+  ✓ Suggests Korean market is less efficient than US market
+  ✓ Opportunities for smart investors who recognize mean reversion
+
+================================================================================
+RECOMMENDATIONS FOR PRESENTATION
+================================================================================
+
+1. EXPLAIN THE STRATEGY (2 minutes)
+   • What is momentum? (Buy winners, sell losers)
+   • Why test it? (Famous paper by Jegadeesh & Titman)
+   • Our approach: 20-day lookback, daily rebalancing
+
+2. SHOW THE DATA (1 minute)
+   • 2,545 Korean stocks
+   • Nov 2024 - Nov 2025
+   • High-quality data from FnGuide
+
+3. PRESENT RESULTS (3 minutes)
+   • Show the chart: Losers beat winners!
+   • Statistics: -16.3% annualized (opposite of expected)
+   • Not significant (p=0.21), but interesting pattern
+
+4. DISCUSS IMPLICATIONS (2 minutes)
+   • Korean market ≠ US market
+   • Mean reversion vs momentum
+   • Real-world trading implications
+
+5. CONCLUSION (1 minute)
+   • Hypothesis: Momentum exists
+   • Finding: Reverse momentum (mean reversion)
+   • Contribution: Shows market structure matters
+
+================================================================================
+NEXT STEPS (Optional Extensions)
+================================================================================
+
+To strengthen your analysis, you could:
+
+1. Test different horizons
+   □ Try 5-day, 10-day, 60-day lookbacks
+   □ See if momentum appears at longer horizons
+
+2. Test subperiods
+   □ Split 2024 vs 2025
+   □ Check if results consistent
+
+3. Industry analysis
+   □ Does momentum work in tech but not finance?
+   □ Sector-specific strategies
+
+4. Size effect
+   □ Large cap vs small cap
+   □ Do results differ?
+
+5. Robustness checks
+   □ Different portfolio sizes (5%, 20% instead of 10%)
+   □ Transaction costs
+   □ Risk-adjusted returns
+
+================================================================================
+FILES GENERATED
+================================================================================
+
+Code:
+  ✓ code/01_load_data.py
+  ✓ code/02_explore_data.py
+  ✓ code/03_momentum_strategy.py
+  ✓ code/04_final_report.py
+
+Data:
+  ✓ data/processed/stock_prices_clean.csv
+
+Results:
+  ✓ output/results/stock_summary_stats.csv
+  ✓ output/results/momentum_backtest_results.csv
+  ✓ output/results/momentum_summary.csv
+
+Figures:
+  ✓ output/figures/01_exploratory_analysis.png
+  ✓ output/figures/02_correlation_matrix.png
+  ✓ output/figures/03_momentum_strategy_results.png
+  ✓ output/figures/04_final_presentation.png
+
+================================================================================
+END OF REPORT
+================================================================================
+
+Generated: 2025-11-15 10:39:19.279693
