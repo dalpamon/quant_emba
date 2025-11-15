@@ -9,7 +9,9 @@
       "Bash(sudo apt-get install:*)",
       "Bash(curl:*)",
       "Bash(rm:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(pkill:*)",
+      "Bash(/home/dalpamon/.local/bin/streamlit run presentation_app.py --server.headless true --server.port 8501)"
     ],
     "deny": [],
     "ask": []
