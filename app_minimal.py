@@ -300,39 +300,41 @@ if 'explorer' not in st.session_state:
 if 'strategies' not in st.session_state:
     st.session_state.strategies = []
 
-# Korean stock tickers (Top 30)
-KOREAN_TICKERS = [
-    '005930.KS',  # Samsung Electronics
-    '000660.KS',  # SK Hynix
-    '373220.KS',  # LG Energy Solution
-    '207940.KS',  # Samsung Biologics
-    '005490.KS',  # POSCO Holdings
-    '051910.KS',  # LG Chem
-    '006400.KS',  # Samsung SDI
-    '035420.KS',  # NAVER
-    '000270.KS',  # Kia
-    '005380.KS',  # Hyundai Motor
-    '068270.KS',  # Celltrion
-    '035720.KS',  # Kakao
-    '105560.KS',  # KB Financial
-    '055550.KS',  # Shinhan Financial
-    '012330.KS',  # Hyundai Mobis
-    '028260.KS',  # Samsung C&T
-    '066570.KS',  # LG Electronics
-    '323410.KS',  # Kakao Bank
-    '003550.KS',  # LG
-    '017670.KS',  # SK Telecom
-    '096770.KS',  # SK Innovation
-    '034730.KS',  # SK
-    '009150.KS',  # Samsung Electro-Mechanics
-    '018260.KS',  # Samsung SDS
-    '086790.KS',  # Hana Financial Group
-    '032830.KS',  # Samsung Life Insurance
-    '010130.KS',  # Korea Zinc
-    '003670.KS',  # POSCO INTERNATIONAL
-    '047810.KS',  # Korea Aerospace Industries
-    '036570.KS',  # NCSOFT
-]
+# Korean stock tickers with names (Top 30)
+KOREAN_STOCKS = {
+    '005930.KS': 'Samsung Electronics',
+    '000660.KS': 'SK Hynix',
+    '373220.KS': 'LG Energy Solution',
+    '207940.KS': 'Samsung Biologics',
+    '005490.KS': 'POSCO Holdings',
+    '051910.KS': 'LG Chem',
+    '006400.KS': 'Samsung SDI',
+    '035420.KS': 'NAVER',
+    '000270.KS': 'Kia',
+    '005380.KS': 'Hyundai Motor',
+    '068270.KS': 'Celltrion',
+    '035720.KS': 'Kakao',
+    '105560.KS': 'KB Financial',
+    '055550.KS': 'Shinhan Financial',
+    '012330.KS': 'Hyundai Mobis',
+    '028260.KS': 'Samsung C&T',
+    '066570.KS': 'LG Electronics',
+    '323410.KS': 'Kakao Bank',
+    '003550.KS': 'LG Corp',
+    '017670.KS': 'SK Telecom',
+    '096770.KS': 'SK Innovation',
+    '034730.KS': 'SK Inc',
+    '009150.KS': 'Samsung Electro-Mechanics',
+    '018260.KS': 'Samsung SDS',
+    '086790.KS': 'Hana Financial',
+    '032830.KS': 'Samsung Life Insurance',
+    '010130.KS': 'Korea Zinc',
+    '003670.KS': 'POSCO International',
+    '047810.KS': 'Korea Aerospace Industries',
+    '036570.KS': 'NCSOFT',
+}
+
+KOREAN_TICKERS = list(KOREAN_STOCKS.keys())
 
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -512,7 +514,9 @@ def display_stock_screener():
             metrics = calculate_stock_metrics(ticker_data)
 
             if metrics:
+                company_name = KOREAN_STOCKS.get(ticker, ticker.replace('.KS', ''))
                 metrics_data.append({
+                    'Company': company_name,
                     'Ticker': ticker.replace('.KS', ''),
                     'Price': f"₩{metrics['price']:,.0f}",
                     'Change %': f"{metrics['change']:.2%}",
@@ -601,7 +605,16 @@ def display_data_explorer():
     data = st.session_state.live_data
     tickers = sorted(data.index.get_level_values(0).unique())
 
-    selected_ticker = st.selectbox("Select Stock", tickers, label_visibility="collapsed")
+    # Create readable ticker options with company names
+    ticker_options = [
+        f"{KOREAN_STOCKS.get(t, t.replace('.KS', ''))} ({t.replace('.KS', '')})"
+        for t in tickers
+    ]
+
+    selected_display = st.selectbox("Select Stock", ticker_options, label_visibility="collapsed")
+
+    # Extract the actual ticker from the selected display string
+    selected_ticker = tickers[ticker_options.index(selected_display)]
 
     if selected_ticker:
         ticker_data = data.loc[selected_ticker]
