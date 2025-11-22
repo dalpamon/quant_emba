@@ -4,6 +4,11 @@
 Ultra-clean, minimalist interface with navy and white color scheme.
 Focus on data, clarity, and simplicity.
 
+Features:
+- Stock Screener with live data
+- Real-time data from Yahoo Finance
+- Technical indicators for all stocks
+
 Author: Agentic Backtesting Framework
 Version: 3.0 Minimal
 Date: 2025-11-22
@@ -17,11 +22,12 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import sys
 from pathlib import Path
+import yfinance as yf
+from datetime import datetime, timedelta
 
 # Add core modules to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.data_loader import DataLoader
 from core.indicators import TechnicalIndicators
 from core.feature_engineering import FeatureEngineeringPipeline
 from core.agent import AgenticStrategyExplorer
@@ -106,6 +112,32 @@ st.markdown("""
         color: #6b7280;
         text-transform: uppercase;
         letter-spacing: 1px;
+    }
+
+    /* Stock card */
+    .stock-card {
+        background-color: #ffffff;
+        border: 1px solid #e5e7eb;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        transition: all 0.2s ease;
+    }
+
+    .stock-card:hover {
+        border-color: #1a1f36;
+    }
+
+    .stock-name {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #1a1f36;
+        margin-bottom: 0.25rem;
+    }
+
+    .stock-ticker {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-bottom: 0.5rem;
     }
 
     /* Info boxes */
@@ -261,45 +293,125 @@ st.markdown("""
 # Initialize session state
 if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = False
+if 'live_data' not in st.session_state:
+    st.session_state.live_data = None
 if 'explorer' not in st.session_state:
     st.session_state.explorer = None
 if 'strategies' not in st.session_state:
     st.session_state.strategies = []
 
+# Korean stock tickers (Top 30)
+KOREAN_TICKERS = [
+    '005930.KS',  # Samsung Electronics
+    '000660.KS',  # SK Hynix
+    '373220.KS',  # LG Energy Solution
+    '207940.KS',  # Samsung Biologics
+    '005490.KS',  # POSCO Holdings
+    '051910.KS',  # LG Chem
+    '006400.KS',  # Samsung SDI
+    '035420.KS',  # NAVER
+    '000270.KS',  # Kia
+    '005380.KS',  # Hyundai Motor
+    '068270.KS',  # Celltrion
+    '035720.KS',  # Kakao
+    '105560.KS',  # KB Financial
+    '055550.KS',  # Shinhan Financial
+    '012330.KS',  # Hyundai Mobis
+    '028260.KS',  # Samsung C&T
+    '066570.KS',  # LG Electronics
+    '323410.KS',  # Kakao Bank
+    '003550.KS',  # LG
+    '017670.KS',  # SK Telecom
+    '096770.KS',  # SK Innovation
+    '034730.KS',  # SK
+    '009150.KS',  # Samsung Electro-Mechanics
+    '018260.KS',  # Samsung SDS
+    '086790.KS',  # Hana Financial Group
+    '032830.KS',  # Samsung Life Insurance
+    '010130.KS',  # Korea Zinc
+    '003670.KS',  # POSCO INTERNATIONAL
+    '047810.KS',  # Korea Aerospace Industries
+    '036570.KS',  # NCSOFT
+]
+
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def fetch_live_data(tickers, period='1y'):
+    """Fetch live data from Yahoo Finance."""
+    try:
+        data_frames = []
+
+        for ticker in tickers:
+            try:
+                stock = yf.Ticker(ticker)
+                hist = stock.history(period=period)
+
+                if not hist.empty:
+                    hist['ticker'] = ticker
+                    hist = hist.reset_index()
+                    hist.columns = ['date', 'open', 'high', 'low', 'close', 'volume', 'dividends', 'stock_splits', 'ticker']
+                    hist = hist[['ticker', 'date', 'open', 'high', 'low', 'close', 'volume']]
+                    data_frames.append(hist)
+            except:
+                continue
+
+        if data_frames:
+            combined = pd.concat(data_frames, ignore_index=True)
+            combined = combined.set_index(['ticker', 'date'])
+            return combined
+        return None
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return None
+
 
 def load_korean_stock_data():
-    """Load Korean stock data."""
+    """Load Korean stock data from file or fetch live."""
     try:
-        progress = st.progress(0)
-        status = st.empty()
-
-        status.text("Loading data...")
-        progress.progress(25)
-
+        # Try loading from file first
         data_path = Path("data/processed/stock_prices_clean.csv")
 
         if data_path.exists():
             df = pd.read_csv(data_path, index_col=0, parse_dates=True)
-            progress.progress(50)
-
             df_long = df.stack().reset_index()
             df_long.columns = ['date', 'ticker', 'close']
             df_long = df_long.set_index(['ticker', 'date'])
-            progress.progress(75)
-
             df_long['open'] = df_long['close']
             df_long['high'] = df_long['close'] * 1.02
             df_long['low'] = df_long['close'] * 0.98
             df_long['volume'] = 1000000
-            progress.progress(100)
-
-            status.success("Data loaded")
             return df_long
         else:
-            st.error("Data file not found")
-            return None
+            # Fall back to live data
+            st.info("Local data not found. Fetching live data from Yahoo Finance...")
+            return fetch_live_data(KOREAN_TICKERS)
     except Exception as e:
         st.error(f"Error: {e}")
+        return None
+
+
+def calculate_stock_metrics(ticker_data):
+    """Calculate key metrics for a stock."""
+    try:
+        indicators = TechnicalIndicators(ticker_data)
+
+        current_price = ticker_data['close'].iloc[-1]
+        price_change = ticker_data['close'].pct_change().iloc[-1]
+
+        rsi = indicators.rsi().iloc[-1]
+        macd_df = indicators.macd()
+        macd = macd_df['macd'].iloc[-1]
+
+        vol = ticker_data['close'].pct_change().std() * np.sqrt(252)
+
+        return {
+            'price': current_price,
+            'change': price_change,
+            'rsi': rsi,
+            'macd': macd,
+            'volatility': vol
+        }
+    except:
         return None
 
 
@@ -331,8 +443,8 @@ def display_home():
     with col3:
         st.markdown("""
         <div class="metric-box">
-            <div class="metric-value">2,620</div>
-            <div class="metric-label">Stocks</div>
+            <div class="metric-value">30</div>
+            <div class="metric-label">Korean Stocks</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -349,30 +461,132 @@ def display_home():
 
     st.markdown("""
     <div class="info-box">
-        <div class="info-box-title">Autonomous Exploration</div>
+        <div class="info-box-title">Live Market Data</div>
+        <div class="info-box-text">
+            Real-time data from Yahoo Finance. Always up-to-date with latest prices and indicators.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="info-box">
+        <div class="info-box-title">Stock Screener</div>
+        <div class="info-box-text">
+            View all stocks with RSI, MACD, and key metrics in one dashboard. Filter and sort by indicators.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="info-box">
+        <div class="info-box-title">Autonomous Optimization</div>
         <div class="info-box-text">
             AI agent explores thousands of parameter combinations to discover optimal strategies automatically.
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="info-box">
-        <div class="info-box-title">Korean Market Optimized</div>
-        <div class="info-box-text">
-            Mean reversion detection, momentum reversals, and market-specific analytics.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="info-box">
-        <div class="info-box-title">Advanced Analytics</div>
-        <div class="info-box-text">
-            Geometric returns, Sharpe/Sortino/Calmar ratios, risk metrics, and performance tracking.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+def display_stock_screener():
+    """Stock screener showing all stocks with indicators."""
+
+    st.markdown('<div class="minimal-header">Stock Screener</div>', unsafe_allow_html=True)
+    st.markdown('<div class="minimal-subtitle">Live market data with technical indicators</div>', unsafe_allow_html=True)
+
+    if not st.session_state.data_loaded:
+        st.info("Load market data from sidebar to continue")
+        return
+
+    data = st.session_state.live_data
+    tickers = sorted(data.index.get_level_values(0).unique())
+
+    # Calculate metrics for all stocks
+    st.markdown('<div class="section-title">Market Overview</div>', unsafe_allow_html=True)
+
+    metrics_data = []
+
+    progress_bar = st.progress(0)
+    for i, ticker in enumerate(tickers):
+        try:
+            ticker_data = data.loc[ticker]
+            metrics = calculate_stock_metrics(ticker_data)
+
+            if metrics:
+                metrics_data.append({
+                    'Ticker': ticker.replace('.KS', ''),
+                    'Price': f"₩{metrics['price']:,.0f}",
+                    'Change %': f"{metrics['change']:.2%}",
+                    'RSI': f"{metrics['rsi']:.1f}",
+                    'MACD': f"{metrics['macd']:.4f}",
+                    'Volatility': f"{metrics['volatility']:.2%}",
+                    'RSI_val': metrics['rsi'],  # For filtering
+                })
+        except:
+            continue
+
+        progress_bar.progress((i + 1) / len(tickers))
+
+    progress_bar.empty()
+
+    if metrics_data:
+        df = pd.DataFrame(metrics_data)
+
+        # Filters
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            rsi_filter = st.selectbox(
+                "RSI Filter",
+                ["All", "Oversold (<30)", "Neutral (30-70)", "Overbought (>70)"]
+            )
+
+        with col2:
+            sort_by = st.selectbox(
+                "Sort By",
+                ["Ticker", "RSI", "Change %", "Volatility"]
+            )
+
+        with col3:
+            ascending = st.checkbox("Ascending", value=True)
+
+        # Apply filters
+        if rsi_filter == "Oversold (<30)":
+            df = df[df['RSI_val'] < 30]
+        elif rsi_filter == "Neutral (30-70)":
+            df = df[(df['RSI_val'] >= 30) & (df['RSI_val'] <= 70)]
+        elif rsi_filter == "Overbought (>70)":
+            df = df[df['RSI_val'] > 70]
+
+        # Sort
+        if sort_by == "RSI":
+            df = df.sort_values('RSI_val', ascending=ascending)
+        elif sort_by != "Ticker":
+            df = df.sort_values(sort_by, ascending=ascending)
+
+        # Display table
+        display_df = df.drop(columns=['RSI_val'])
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+        # Summary stats
+        st.markdown('<div class="section-title">Summary Statistics</div>', unsafe_allow_html=True)
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            oversold = len(df[df['RSI_val'] < 30])
+            st.metric("Oversold Stocks", oversold)
+
+        with col2:
+            overbought = len(df[df['RSI_val'] > 70])
+            st.metric("Overbought Stocks", overbought)
+
+        with col3:
+            avg_rsi = df['RSI_val'].mean()
+            st.metric("Average RSI", f"{avg_rsi:.1f}")
+
+        with col4:
+            total_stocks = len(df)
+            st.metric("Total Stocks", total_stocks)
 
 
 def display_data_explorer():
@@ -381,10 +595,10 @@ def display_data_explorer():
     st.markdown('<div class="minimal-header">Data Explorer</div>', unsafe_allow_html=True)
 
     if not st.session_state.data_loaded:
-        st.info("Load Korean stock data from sidebar to continue")
+        st.info("Load market data from sidebar to continue")
         return
 
-    data = st.session_state.data
+    data = st.session_state.live_data
     tickers = sorted(data.index.get_level_values(0).unique())
 
     selected_ticker = st.selectbox("Select Stock", tickers, label_visibility="collapsed")
@@ -513,7 +727,7 @@ def display_optimization():
     st.markdown('<div class="minimal-header">Strategy Optimization</div>', unsafe_allow_html=True)
 
     if not st.session_state.data_loaded:
-        st.info("Load Korean stock data from sidebar to continue")
+        st.info("Load market data from sidebar to continue")
         return
 
     st.markdown('<div class="section-title">Configuration</div>', unsafe_allow_html=True)
@@ -533,7 +747,7 @@ def display_optimization():
         with st.spinner("Optimizing..."):
             try:
                 explorer = AgenticStrategyExplorer(
-                    data=st.session_state.data,
+                    data=st.session_state.live_data,
                     objective=objective,
                     korean_market=True
                 )
@@ -566,25 +780,39 @@ def main():
 
         page = st.radio(
             "",
-            ["Home", "Data Explorer", "Optimization"],
+            ["Home", "Stock Screener", "Data Explorer", "Optimization"],
             label_visibility="collapsed"
         )
 
         st.markdown("---")
 
-        if st.button("Load Data", use_container_width=True):
-            data = load_korean_stock_data()
-            if data is not None:
-                st.session_state.data = data
-                st.session_state.data_loaded = True
+        if st.button("Load Live Data", use_container_width=True):
+            with st.spinner("Fetching live data..."):
+                data = fetch_live_data(KOREAN_TICKERS, period='1y')
+                if data is not None:
+                    st.session_state.live_data = data
+                    st.session_state.data_loaded = True
+                    st.success("Live data loaded")
+                else:
+                    # Fallback to local data
+                    data = load_korean_stock_data()
+                    if data is not None:
+                        st.session_state.live_data = data
+                        st.session_state.data_loaded = True
+                        st.success("Local data loaded")
 
         if st.session_state.data_loaded:
-            n_stocks = len(st.session_state.data.index.get_level_values(0).unique())
+            n_stocks = len(st.session_state.live_data.index.get_level_values(0).unique())
             st.caption(f"{n_stocks} stocks loaded")
+
+            last_update = datetime.now().strftime("%H:%M")
+            st.caption(f"Updated: {last_update}")
 
     # Routing
     if page == "Home":
         display_home()
+    elif page == "Stock Screener":
+        display_stock_screener()
     elif page == "Data Explorer":
         display_data_explorer()
     elif page == "Optimization":
