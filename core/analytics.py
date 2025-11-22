@@ -13,11 +13,18 @@ logger = logging.getLogger(__name__)
 
 
 class PerformanceAnalytics:
-    """Calculate comprehensive performance metrics for backtested strategies"""
+    """
+    Calculate comprehensive performance metrics for backtested strategies.
+
+    Enhanced with:
+    - Geometric vs. Arithmetic returns
+    - Korean market-specific metrics
+    - Advanced risk analytics
+    """
 
     @staticmethod
     def calculate_metrics(equity_curve: pd.Series, benchmark: Optional[pd.Series] = None,
-                         risk_free_rate: float = 0.02) -> Dict:
+                         risk_free_rate: float = 0.02, korean_market: bool = False) -> Dict:
         """
         Calculate all performance metrics
 
@@ -301,6 +308,259 @@ class PerformanceAnalytics:
         top_periods = drawdown_periods[:top_n]
 
         return pd.DataFrame(top_periods)
+
+    @staticmethod
+    def geometric_return(returns: pd.Series, periods: int = 252) -> float:
+        """
+        Calculate geometric (compounded) return.
+
+        More accurate than arithmetic mean for volatile returns.
+
+        Args:
+            returns: Series of returns
+            periods: Periods per year for annualization (default 252)
+
+        Returns:
+            Annualized geometric return
+        """
+        if len(returns) == 0:
+            return 0.0
+
+        # Compound returns
+        total_return = (1 + returns).prod() - 1
+
+        # Annualize
+        n_periods = len(returns)
+        years = n_periods / periods
+
+        if years > 0:
+            geometric_return = (1 + total_return) ** (1 / years) - 1
+        else:
+            geometric_return = 0.0
+
+        return geometric_return
+
+    @staticmethod
+    def arithmetic_return(returns: pd.Series, periods: int = 252) -> float:
+        """
+        Calculate arithmetic (simple average) return.
+
+        Args:
+            returns: Series of returns
+            periods: Periods per year for annualization (default 252)
+
+        Returns:
+            Annualized arithmetic return
+        """
+        if len(returns) == 0:
+            return 0.0
+
+        return returns.mean() * periods
+
+    @staticmethod
+    def return_comparison(returns: pd.Series, periods: int = 252) -> Dict:
+        """
+        Compare geometric vs. arithmetic returns.
+
+        For volatile assets, geometric return is more accurate.
+        The difference indicates compounding drag from volatility.
+
+        Args:
+            returns: Series of returns
+            periods: Periods per year for annualization
+
+        Returns:
+            Dict with geometric, arithmetic returns and variance drag
+        """
+        geometric = PerformanceAnalytics.geometric_return(returns, periods)
+        arithmetic = PerformanceAnalytics.arithmetic_return(returns, periods)
+
+        # Variance drag (approximate)
+        # geometric ≈ arithmetic - (variance / 2)
+        variance = returns.var() * periods
+        variance_drag = arithmetic - geometric
+
+        return {
+            'geometric_return': geometric,
+            'arithmetic_return': arithmetic,
+            'variance_drag': variance_drag,
+            'variance': variance,
+            'note': 'Geometric return accounts for compounding effects'
+        }
+
+    @staticmethod
+    def korean_market_metrics(strategy_returns: pd.Series, market_returns: pd.Series) -> Dict:
+        """
+        Calculate Korean market-specific performance metrics.
+
+        Accounts for:
+        - Mean reversion tendency in Korean market
+        - Momentum reversals
+        - Chaebols influence
+        - Retail investor sentiment
+
+        Args:
+            strategy_returns: Strategy returns
+            market_returns: Market (KOSPI) returns
+
+        Returns:
+            Dict of Korean market metrics
+        """
+        # Mean reversion test: autocorrelation
+        # Negative autocorrelation suggests mean reversion
+        autocorr_1d = strategy_returns.autocorr(lag=1)
+        autocorr_5d = strategy_returns.autocorr(lag=5)
+        autocorr_20d = strategy_returns.autocorr(lag=20)
+
+        # Momentum reversal: correlation between past and future returns
+        # If negative, winners become losers (mean reversion)
+        past_returns = strategy_returns.shift(20)
+        future_returns = strategy_returns.shift(-20)
+        momentum_reversal = past_returns.corr(future_returns)
+
+        # Market correlation during up/down markets
+        # Korean retail investors tend to chase performance
+        up_market = market_returns > 0
+        down_market = market_returns < 0
+
+        corr_up_market = strategy_returns[up_market].corr(market_returns[up_market])
+        corr_down_market = strategy_returns[down_market].corr(market_returns[down_market])
+
+        # Tail risk: Korean market can have extreme moves
+        # Skewness and kurtosis
+        skewness = strategy_returns.skew()
+        kurtosis = strategy_returns.kurtosis()
+
+        # Downside risk in tail events (5th percentile)
+        var_5 = strategy_returns.quantile(0.05)  # Value at Risk
+        cvar_5 = strategy_returns[strategy_returns <= var_5].mean()  # Conditional VaR
+
+        return {
+            'mean_reversion_1d': autocorr_1d,
+            'mean_reversion_5d': autocorr_5d,
+            'mean_reversion_20d': autocorr_20d,
+            'momentum_reversal': momentum_reversal,
+            'correlation_up_market': corr_up_market,
+            'correlation_down_market': corr_down_market,
+            'asymmetric_correlation': corr_down_market - corr_up_market,
+            'skewness': skewness,
+            'kurtosis': kurtosis,
+            'var_5pct': var_5,
+            'cvar_5pct': cvar_5,
+            'interpretation': {
+                'mean_reversion': 'Negative autocorr suggests mean reversion (common in Korean market)',
+                'momentum_reversal': 'Negative value indicates winners become losers',
+                'asymmetric_correlation': 'Positive value indicates higher correlation in down markets',
+                'tail_risk': f'Kurtosis {kurtosis:.2f} (>3 means fat tails, common in Korean market)'
+            }
+        }
+
+    @staticmethod
+    def sharpe_ratio(returns: pd.Series, risk_free_rate: float = 0.02, periods: int = 252) -> float:
+        """
+        Calculate Sharpe ratio using geometric returns.
+
+        Args:
+            returns: Series of returns
+            risk_free_rate: Annual risk-free rate
+            periods: Periods per year
+
+        Returns:
+            Sharpe ratio
+        """
+        if returns.std() == 0:
+            return 0.0
+
+        excess_returns = returns - (risk_free_rate / periods)
+        sharpe = np.sqrt(periods) * excess_returns.mean() / returns.std()
+
+        return sharpe
+
+    @staticmethod
+    def sortino_ratio(returns: pd.Series, risk_free_rate: float = 0.02, periods: int = 252) -> float:
+        """
+        Calculate Sortino ratio (only downside deviation).
+
+        Better than Sharpe for asymmetric returns.
+
+        Args:
+            returns: Series of returns
+            risk_free_rate: Annual risk-free rate
+            periods: Periods per year
+
+        Returns:
+            Sortino ratio
+        """
+        downside_returns = returns[returns < 0]
+
+        if len(downside_returns) == 0 or downside_returns.std() == 0:
+            return 0.0
+
+        excess_returns = returns.mean() - (risk_free_rate / periods)
+        downside_std = downside_returns.std() * np.sqrt(periods)
+
+        sortino = excess_returns * periods / downside_std
+
+        return sortino
+
+    @staticmethod
+    def calmar_ratio(returns: pd.Series, equity_curve: Optional[pd.Series] = None) -> float:
+        """
+        Calculate Calmar ratio (CAGR / Max Drawdown).
+
+        Args:
+            returns: Series of returns
+            equity_curve: Optional equity curve (will be computed from returns if not provided)
+
+        Returns:
+            Calmar ratio
+        """
+        # Calculate CAGR
+        geometric = PerformanceAnalytics.geometric_return(returns)
+
+        # Calculate max drawdown
+        if equity_curve is None:
+            equity_curve = (1 + returns).cumprod()
+
+        running_max = equity_curve.expanding().max()
+        drawdowns = (equity_curve - running_max) / running_max
+        max_dd = abs(drawdowns.min())
+
+        if max_dd == 0:
+            return 0.0
+
+        calmar = geometric / max_dd
+
+        return calmar
+
+    @staticmethod
+    def max_drawdown(equity_curve: pd.Series) -> float:
+        """
+        Calculate maximum drawdown.
+
+        Args:
+            equity_curve: Series of portfolio values
+
+        Returns:
+            Maximum drawdown (negative value)
+        """
+        running_max = equity_curve.expanding().max()
+        drawdowns = (equity_curve - running_max) / running_max
+        return drawdowns.min()
+
+    @staticmethod
+    def volatility(returns: pd.Series, periods: int = 252) -> float:
+        """
+        Calculate annualized volatility.
+
+        Args:
+            returns: Series of returns
+            periods: Periods per year
+
+        Returns:
+            Annualized volatility
+        """
+        return returns.std() * np.sqrt(periods)
 
 
 if __name__ == "__main__":
